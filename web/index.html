@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agente Órdenes de Compra</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #667085; --line: #e3e6ec;
+    --brand: #1f4fd1; --brand-soft: #e8eefc; --ok: #137a3f; --ok-soft: #e5f4ea;
+    --warn: #9a5b00; --warn-soft: #fff4dc; --err: #b42318; --err-soft: #fdeceb; --user: #1f4fd1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11141a; --panel: #1a1e26; --text: #e6e8ee; --muted: #98a2b3; --line: #2b313d;
+      --brand: #7aa2ff; --brand-soft: #1f2a44; --ok: #5fd08a; --ok-soft: #16301f;
+      --warn: #f2b84b; --warn-soft: #33290f; --err: #ff8a80; --err-soft: #3a1b1a; --user: #3b63d6;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  .app { max-width: 980px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; padding: 0 16px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .badges { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .badge { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); }
+  button.link { background: none; border: 0; color: var(--brand); cursor: pointer; font-size: 13px; }
+  main { flex: 1; padding: 16px 0; display: flex; flex-direction: column; gap: 14px; }
+  .msg { max-width: 100%; }
+  .msg.user .bubble { background: var(--user); color: #fff; margin-left: auto; max-width: 80%; border-radius: 14px 14px 4px 14px; }
+  .msg.bot .bubble { background: var(--panel); border: 1px solid var(--line); border-radius: 14px 14px 14px 4px; }
+  .bubble { padding: 12px 14px; overflow-x: auto; width: fit-content; max-width: 100%; }
+  .bubble table { border-collapse: collapse; margin: 8px 0; font-size: 13.5px; }
+  .bubble th, .bubble td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
+  .bubble th { background: var(--bg); }
+  .bubble p { margin: 6px 0; } .bubble ul { margin: 6px 0; padding-left: 20px; }
+  .bubble code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .bubble h3, .bubble h4 { margin: 10px 0 4px; font-size: 15px; }
+  .tools { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  details.tool { border: 1px solid var(--line); border-left: 4px solid var(--ok); background: var(--panel); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+  details.tool.fail { border-left-color: var(--err); }
+  details.tool summary { cursor: pointer; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  details.tool .name { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; }
+  details.tool .res { color: var(--muted); }
+  details.tool pre { white-space: pre-wrap; word-break: break-word; background: var(--bg); padding: 8px; border-radius: 6px; margin: 6px 0 0; font-size: 12px; }
+  .nota { color: var(--warn); font-size: 12px; margin-top: 4px; }
+  .confirm { border: 2px solid var(--warn); background: var(--warn-soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+  .confirm strong { color: var(--warn); }
+  .confirm .acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+  .thinking { color: var(--muted); font-size: 14px; display: none; align-items: center; gap: 8px; }
+  .thinking.on { display: flex; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); animation: pulse 1s infinite ease-in-out; }
+  @keyframes pulse { 0%,100% { opacity: .25 } 50% { opacity: 1 } }
+  .sugerencias { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  .chip:hover { border-color: var(--brand); }
+  form { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0 16px; display: flex; gap: 8px; border-top: 1px solid var(--line); }
+  textarea { flex: 1; resize: none; min-height: 46px; max-height: 160px; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit; }
+  .btn { border: 0; border-radius: 10px; padding: 0 18px; background: var(--brand); color: #fff; font-weight: 600; cursor: pointer; min-height: 46px; }
+  .btn.sec { background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .error { color: var(--err); }
+  @media (max-width: 600px) { .msg.user .bubble { max-width: 92%; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Agente de Órdenes de Compra · SAP</h1>
+      <p>Lee el paquete, valida controles RC1–RC10, arma la OC y la crea solo con tu confirmación.</p>
+    </div>
+    <div class="badges">
+      <span class="badge" id="modelo">conectando…</span>
+      <button class="link" id="nueva" type="button">Nueva sesión</button>
+    </div>
+  </header>
+
+  <main id="chat">
+    <div class="sugerencias" id="sugerencias">
+      <button class="chip" type="button">Procesa la solicitud "sol-004". Muéstrame la OC como quedaría en SAP, qué validaciones pasó y cuáles no, y no la crees hasta que yo lo confirme.</button>
+      <button class="chip" type="button">Procesa la solicitud "sol-001".</button>
+      <button class="chip" type="button">Procesa todas las solicitudes (sol-001 a sol-006) y dame un resumen por caso, sin crear las que requieran confirmación.</button>
+      <button class="chip" type="button">¿Por qué está bloqueada la solicitud "sol-003" y qué debo pedir?</button>
+    </div>
+  </main>
+
+  <div class="thinking" id="pensando"><span class="dot"></span>El agente está trabajando…</div>
+
+  <form id="form">
+    <textarea id="entrada" placeholder="Escribe, por ejemplo: procesa la solicitud sol-006" rows="1"></textarea>
+    <button class="btn" id="enviar" type="submit">Enviar</button>
+  </form>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id)
+  const chat = $("chat"), entrada = $("entrada"), enviar = $("enviar"), pensando = $("pensando")
+  const almacen = {
+    get(k) { try { return localStorage.getItem(k) } catch { return null } },
+    set(k, v) { try { localStorage.setItem(k, v) } catch {} },
+    del(k) { try { localStorage.removeItem(k) } catch {} },
+  }
+  let sessionId = almacen.get("oc-session") || nuevoId()
+  let claveAcceso = almacen.get("oc-access-key") || ""
+
+  function nuevoId() { const id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2)); almacen.set("oc-session", id); return id }
+
+  function escapar(t) { return String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])) }
+  function enLinea(t) {
+    return escapar(t)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
+  }
+  // Markdown mínimo: encabezados, tablas, listas y párrafos. Todo el texto se escapa antes.
+  function markdown(texto) {
+    const lineas = String(texto || "").split("\n"), html = []
+    for (let i = 0; i < lineas.length; i++) {
+      const l = lineas[i]
+      if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < lineas.length && /^\s*\|[\s:|-]+\|\s*$/.test(lineas[i + 1])) {
+        const celdas = (s) => s.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim())
+        let t = "<table><thead><tr>" + celdas(l).map((c) => "<th>" + enLinea(c) + "</th>").join("") + "</tr></thead><tbody>"
+        i += 2
+        while (i < lineas.length && /^\s*\|.*\|\s*$/.test(lineas[i])) { t += "<tr>" + celdas(lineas[i]).map((c) => "<td>" + enLinea(c) + "</td>").join("") + "</tr>"; i++ }
+        html.push(t + "</tbody></table>"); i--; continue
+      }
+      if (/^\s*[-*] /.test(l)) {
+        let ul = "<ul>"
+        while (i < lineas.length && /^\s*[-*] /.test(lineas[i])) { ul += "<li>" + enLinea(lineas[i].replace(/^\s*[-*] /, "")) + "</li>"; i++ }
+        html.push(ul + "</ul>"); i--; continue
+      }
+      const h = /^(#{1,4})\s+(.*)$/.exec(l)
+      if (h) { html.push("<h4>" + enLinea(h[2]) + "</h4>"); continue }
+      if (/^\s*-{3,}\s*$/.test(l)) { html.push("<hr>"); continue }
+      if (l.trim()) html.push("<p>" + enLinea(l) + "</p>")
+    }
+    return html.join("")
+  }
+
+  function agregarUsuario(texto) {
+    const d = document.createElement("div"); d.className = "msg user"
+    d.innerHTML = '<div class="bubble">' + escapar(texto).replace(/\n/g, "<br>") + "</div>"
+    chat.appendChild(d); bajar()
+  }
+
+  function agregarBot(r) {
+    const d = document.createElement("div"); d.className = "msg bot"
+    let html = ""
+    if (r.toolCalls && r.toolCalls.length) {
+      html += '<div class="tools">' + r.toolCalls.map((t) =>
+        '<details class="tool ' + (t.ok ? "" : "fail") + '"><summary><span>' + (t.ok ? "🔧" : "⚠️") + '</span><span class="name">' + escapar(t.nombre) + '</span><span class="res">' + escapar(t.resumen) + "</span></summary>" +
+        "<pre>argumentos: " + escapar(JSON.stringify(t.argumentos, null, 2)) + "</pre>" +
+        (t.nota ? '<div class="nota">' + escapar(t.nota) + "</div>" : "") + "</details>").join("") + "</div>"
+    }
+    html += '<div class="bubble">' + markdown(r.reply) + "</div>"
+    d.innerHTML = html
+    chat.appendChild(d)
+    if (r.needsConfirmation) {
+      const pendientes = r.pendientes || []
+      const c = document.createElement("div"); c.className = "confirm"
+      const botones = pendientes.map((p) => '<button class="btn" type="button" data-caso="' + escapar(p) + '">Confirmar ' + escapar(p) + "</button>").join("")
+      c.innerHTML = "<div><strong>⏸️ El agente espera tu confirmación</strong><br><span>Pendiente: " + escapar(pendientes.join(", ")) + ". Nada se crea sin tu confirmación explícita, caso por caso.</span></div>" +
+        '<div class="acciones">' + botones + '<button class="btn sec" type="button" data-no="1">No crear</button></div>'
+      c.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+        c.remove()
+        if (b.dataset.caso) enviarMensaje("Confirmo " + b.dataset.caso + ", créala.", [b.dataset.caso])
+        else enviarMensaje("No, todavía no la crees.")
+      }))
+      chat.appendChild(c)
+    }
+    bajar()
+  }
+
+  function agregarError(texto) {
+    const d = document.createElement("div"); d.className = "msg bot"
+    d.innerHTML = '<div class="bubble error">⚠️ ' + escapar(texto) + "</div>"
+    chat.appendChild(d); bajar()
+  }
+
+  function bajar() { window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }) }
+  function ocupado(si) { enviar.disabled = si; entrada.disabled = si; pensando.classList.toggle("on", si) }
+
+  async function enviarMensaje(texto, confirmar) {
+    texto = (texto || "").trim(); if (!texto) return
+    $("sugerencias")?.remove()
+    document.querySelectorAll(".confirm").forEach((c) => c.remove())
+    agregarUsuario(texto); entrada.value = ""; ocupado(true)
+    try {
+      const res = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json", "x-access-key": claveAcceso }, body: JSON.stringify(confirmar ? { sessionId, message: texto, confirmar } : { sessionId, message: texto }) })
+      const r = await res.json()
+      if (res.status === 401) { pedirClave(); agregarError("Este link requiere clave de acceso. Ingrésala y repite el mensaje."); return }
+      if (!r.ok) { agregarError(r.error || "Error desconocido"); return }
+      agregarBot(r)
+    } catch { agregarError("No hay conexión con el servidor. Revisa que esté activo y reintenta.") }
+    finally { ocupado(false); entrada.focus() }
+  }
+
+  function pedirClave() { const k = prompt("Clave de acceso del link (ver README):", ""); if (k !== null) { claveAcceso = k.trim(); almacen.set("oc-access-key", claveAcceso) } }
+
+  async function cargarHistorial() {
+    try {
+      const res = await fetch("/api/sessions/" + encodeURIComponent(sessionId), { headers: { "x-access-key": claveAcceso } })
+      if (!res.ok) return
+      const s = await res.json()
+      if (!s.historial || !s.historial.length) return
+      $("sugerencias")?.remove()
+      s.historial.forEach((h, idx) => h.rol === "usuario" ? agregarUsuario(h.texto) : agregarBot({ reply: h.texto, toolCalls: h.toolCalls, needsConfirmation: h.needsConfirmation && idx === s.historial.length - 1, pendientes: s.pendientes }))
+    } catch {}
+  }
+
+  $("form").addEventListener("submit", (e) => { e.preventDefault(); enviarMensaje(entrada.value) })
+  entrada.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviarMensaje(entrada.value) } })
+  // Los chips se envían tal cual; enviarMensaje(texto) sin segundo argumento no confirma nada por botón.
+  document.querySelectorAll("#sugerencias .chip").forEach((b) => b.addEventListener("click", () => enviarMensaje(b.textContent)))
+  $("nueva").addEventListener("click", () => { almacen.del("oc-session"); location.reload() })
+
+  fetch("/api/health").then((r) => r.json()).then((h) => {
+    $("modelo").textContent = h.ok ? h.provider + " · " + h.model : "modelo no configurado"
+    if (h.requiere_clave_acceso && !claveAcceso) pedirClave()
+    cargarHistorial()
+  }).catch(() => { $("modelo").textContent = "sin conexión" })
+</script>
+</body>
+</html>
