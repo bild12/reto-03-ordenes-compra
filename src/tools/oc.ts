@@ -5,6 +5,7 @@ import { z } from "zod/v4"
 import { validarPaquete, type ResultadoValidacion } from "../dominio/controles.ts"
 import { registrarControl, type ResultadoControl } from "../dominio/bitacoras.ts"
 import { generarEvidencia } from "../dominio/evidencia.ts"
+import { leerExcel } from "../dominio/excel.ts"
 import { cargarMaestros, cargarPaquete, leerAprobacionCruda, type Paquete } from "../dominio/fuentes.ts"
 import { formatearMonto, PATRON_CASO } from "../dominio/normalizar.ts"
 import { construirOrden, guardarTrazabilidad, huellaCritica, OrdenCompraEsquema } from "../dominio/payload.ts"
@@ -222,5 +223,15 @@ export const crear = {
         },
       }
     })
+  },
+}
+
+export const leer_excel = {
+  description: "Lee la primera hoja de un archivo .xlsx real (por ejemplo la solicitud que envía el solicitante) y devuelve sus filas como objetos, usando la primera fila como encabezados.",
+  args: {
+    ruta: z.string().min(1).max(260).describe("Ruta relativa al proyecto dentro de fixtures/ u out/, p. ej. fixtures/reto-03/solicitudes/sol-001/solicitud.xlsx"),
+  },
+  async execute(args: { ruta: string }, ctx: Contexto): Promise<string> {
+    return seguro(async () => ({ ok: true, data: await leerExcel(ctx.directory, args.ruta) }))
   },
 }

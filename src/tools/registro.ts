@@ -54,6 +54,8 @@ function resumir(nombre: string, data: unknown): string {
       return `payload válido · trazabilidad en ${String(d["ruta_trazabilidad"])}`
     case "oc_generar_evidencia":
       return `${String(d["ruta"])} · sha256 ${String(d["sha256"]).slice(0, 12)}…`
+    case "oc_leer_excel":
+      return `hoja "${String(d["hoja"])}" · ${String(((d["filas"] as unknown[] | undefined) ?? []).length)} filas`
     case "oc_crear":
       return d["idempotente"] ? `OC ${String(d["numero_oc"])} ya existía (idempotente)` : `OC ${String(d["numero_oc"])} creada`
     default:
