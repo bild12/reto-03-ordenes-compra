@@ -7,7 +7,8 @@ import * as appTools from "../src/tools/oc.ts"
 
 test("modulo/ está sincronizado con agent/prompt.md y src/knowledge (correr bun run modulo:sync)", async () => {
   for (const [ruta, esperado] of Object.entries(await contenidosEsperados(process.cwd()))) {
-    expect(await readFile(ruta, "utf8")).toBe(esperado)
+    const actual = (await readFile(ruta, "utf8")).replace(/\r\n/g, "\n")
+    expect(actual).toBe(esperado)
   }
 })
 

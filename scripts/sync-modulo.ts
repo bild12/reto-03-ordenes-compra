@@ -32,12 +32,13 @@ export * from "../../src/tools/oc.ts"
 `
 
 export async function contenidosEsperados(raiz: string): Promise<Record<string, string>> {
-  const prompt = await readFile(join(raiz, "agent", "prompt.md"), "utf8")
-  const conocimiento = await readFile(join(raiz, "src", "knowledge", "ordenes-compra.md"), "utf8")
+  const lf = (s: string): string => s.replace(/\r\n/g, "\n")
+  const prompt = lf(await readFile(join(raiz, "agent", "prompt.md"), "utf8"))
+  const conocimiento = lf(await readFile(join(raiz, "src", "knowledge", "ordenes-compra.md"), "utf8"))
   return {
-    "modulo/agent.md": FRONTMATTER_AGENTE + prompt,
-    "modulo/skill/ordenes-compra/SKILL.md": `${FRONTMATTER_SKILL}${conocimiento}\n${matrizComoMarkdown()}`,
-    "modulo/tools/oc.ts": TOOLS_REEXPORT,
+    "modulo/agent.md": lf(FRONTMATTER_AGENTE) + prompt,
+    "modulo/skill/ordenes-compra/SKILL.md": `${lf(FRONTMATTER_SKILL)}${conocimiento}\n${lf(matrizComoMarkdown())}`,
+    "modulo/tools/oc.ts": lf(TOOLS_REEXPORT),
   }
 }
 
