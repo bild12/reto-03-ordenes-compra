@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { Hono } from "hono"
 import { z } from "zod/v4"
 import { ejecutarTurno } from "./agent/ciclo.ts"
+import { ConsumoDiario } from "./agent/consumo.ts"
 import { AlmacenSesiones, PATRON_SESION } from "./agent/sesiones.ts"
 import { config } from "./config.ts"
 import { ErrorProveedor, type ProveedorLLM } from "./llm/adapter.ts"
@@ -28,13 +29,9 @@ const CuerpoChat = z.object({
   confirmar: z.array(z.string().regex(/^[a-z0-9-]{1,64}$/)).max(20).optional(),
 })
 
-// Tope global diario de tokens: abrir sesiones nuevas no permite saltarse el control de costo.
-const consumoDiario = { dia: "", tokens: 0 }
-function topeGlobalAlcanzado(): boolean {
-  const hoy = new Date().toISOString().slice(0, 10)
-  if (consumoDiario.dia !== hoy) Object.assign(consumoDiario, { dia: hoy, tokens: 0 })
-  return consumoDiario.tokens >= config.maxTokensDia
-}
+// Tope global diario de tokens (persistido en out/): abrir sesiones nuevas o reiniciar el servidor
+// no permite saltarse el control de costo.
+const consumoDiario = new ConsumoDiario(directorio, config.maxTokensDia)
 
 function claveValida(recibida: string | undefined): boolean {
   const a = Buffer.from(recibida ?? "")
@@ -59,7 +56,7 @@ app.post("/api/chat", async (c) => {
   const cuerpo = CuerpoChat.safeParse(await c.req.json().catch(() => null))
   if (!cuerpo.success) return c.json({ ok: false, error: cuerpo.error.issues.map((i) => i.message).join("; ") }, 400)
   if (!llm) return c.json({ ok: false, error: errorConfiguracion }, 503)
-  if (topeGlobalAlcanzado()) return c.json({ ok: false, error: "se alcanzó el tope diario de uso del modelo configurado para este servicio; intenta mañana" }, 429)
+  if (consumoDiario.alcanzado()) return c.json({ ok: false, error: "se alcanzó el tope diario de uso del modelo configurado para este servicio; intenta mañana" }, 429)
   const sessionId = cuerpo.data.sessionId ?? crypto.randomUUID()
   const sesion = await sesiones.obtener(sessionId)
   if (sesion.ocupada) return c.json({ ok: false, error: "la sesión está procesando otro mensaje" }, 409)
@@ -70,7 +67,7 @@ app.post("/api/chat", async (c) => {
       maxIteraciones: config.maxIteraciones,
       maxTokensSesion: config.maxTokensSesion,
     }, cuerpo.data.confirmar)
-    consumoDiario.tokens += turno.uso.tokens_turno
+    await consumoDiario.sumar(turno.uso.tokens_turno).catch(() => undefined)
     return c.json({ ok: true, sessionId, ...turno })
   } catch {
     return c.json({ ok: true, sessionId, reply: "⚠️ Ocurrió un error interno procesando el turno. La sesión sigue activa.", toolCalls: [], needsConfirmation: false, pendientes: sesion.pendientes, confirmados: [] })
