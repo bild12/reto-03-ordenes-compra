@@ -6,8 +6,8 @@ El planteamiento completo, las decisiones y los riesgos están en **[SOLUCION.md
 
 ## Link de prueba
 
-- **URL:** `https://<tu-servicio>.onrender.com` _(completar al desplegar)_
-- **Clave de acceso:** `<ACCESS_KEY>` _(si se configuró; el front la pide al abrir)_
+- **URL:** `https://reto-03-ordenes-compra.onrender.com` _(nombre definido en `render.yaml`; si Render lo asigna con sufijo, actualizar aquí)_
+- **Clave de acceso (simulada, solo para la demo):** `periferia-reto03-demo`. El front la pide al abrir. Protege el consumo del modelo en el link público; no es una credencial real y se puede rotar cambiando `ACCESS_KEY` en Render.
 
 Prompt sugerido para la demo (§11 del PRD):
 
@@ -40,14 +40,14 @@ En Windows (PowerShell): `Copy-Item .env.example .env` y luego `bun install; bun
 | `MAX_TOKENS_POR_SESION` | No | Tope de tokens por sesión (200000). |
 | `MAX_TOKENS_POR_DIA` | No | Tope global diario para todas las sesiones (3000000). |
 | `LLM_TIMEOUT_MS` | No | Timeout de cada llamada al modelo (60000). |
-| `ACCESS_KEY` | No | Si se define, el chat exige esta clave (cabecera `x-access-key`). Recomendado en el link público. |
+| `ACCESS_KEY` | No | Si se define, el chat exige esta clave (cabecera `x-access-key`). En el despliegue de demo vale `periferia-reto03-demo` (ver `render.yaml`); en local puede quedar vacía. |
 | `PORT` | No | Puerto HTTP (3000). |
 
 ## Verificación sin modelo
 
 ```bash
 bun run demo.ts      # 6 casos + idempotencia + confirmación + integridad, verificado contra O1–O4
-bun test             # 44 pruebas: ciclo del agente, confirmación, controles, normalizadores, módulo
+bun test             # 52 pruebas: ciclo del agente, confirmación, controles, normalizadores, Excel, consumo, módulo
 bun run verificar    # tipos + pruebas + demo
 ```
 
@@ -72,13 +72,14 @@ bun run verificar    # tipos + pruebas + demo
 | `oc_validar` | RC1–RC10 → `{ apta, bloqueos[], confirmaciones[], derivados, retroactiva }`. |
 | `oc_construir_payload` | OC con esquema zod (§7.4) + `out/<caso>/trazabilidad.json`. |
 | `oc_generar_evidencia` | `out/<caso>/aprobacion.txt` y `.pdf` con sha256. |
+| `oc_leer_excel` | Lee un `.xlsx` real (P1): primera hoja, encabezados en la fila 1; solo dentro de `fixtures/` u `out/`. |
 | `oc_crear` | Crea en SAP simulado (`out/sap/ordenes.jsonl`), idempotente; registra cada intento en `out/control.csv`. |
 
 ## Despliegue (Render, con Docker)
 
 1. Sube el repositorio a GitHub.
 2. En Render: **New → Blueprint** y selecciona el repo (usa `render.yaml`), o **New → Web Service → Docker**.
-3. Configura `ANTHROPIC_API_KEY` y `ACCESS_KEY` como variables secretas en el panel. No van en el repo.
+3. Configura `ANTHROPIC_API_KEY` como variable secreta en el panel: nunca va en el repo. `ACCESS_KEY` ya viene en `render.yaml` con el valor simulado `periferia-reto03-demo`.
 4. Health check: `/api/health`.
 
 El plan gratuito de Render suspende el servicio por inactividad: ábrelo unos minutos antes de la defensa. El `Dockerfile` también sirve en Railway, Fly.io o Azure Container Apps.

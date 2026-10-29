@@ -17,5 +17,6 @@ services:
         value: "3000000"
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Clave simulada de demostración, publicada en el README: protege el consumo del link público.
       - key: ACCESS_KEY
-        sync: false
+        value: periferia-reto03-demo

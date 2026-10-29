@@ -18,7 +18,7 @@
 | `sol-004` cotización ≠ solicitud y `sol-006` IVA no informado → piden confirmación antes de crear (O3) | ✔ |
 | `sol-005` factura anterior a la solicitud → solo con confirmación y marcada `retroactiva = true` (O4) | ✔ |
 | Idempotencia: `sol-001` dos veces → misma OC, ninguna duplicada | ✔ |
-| 44 pruebas automáticas + `demo.ts` que se verifica a sí misma contra O1–O4 | ✔ |
+| 52 pruebas automáticas + `demo.ts` que se verifica a sí misma contra O1–O4 | ✔ |
 
 **Tres hallazgos para la dirección**
 
@@ -94,7 +94,7 @@ Agregué `src/dominio/` y `src/agent/` a la estructura sugerida: las herramienta
 | Regla | Implementación |
 |---|---|
 | **CA1 · Tope de iteraciones** | `MAX_ITERACIONES_POR_TURNO` (25 por defecto). Al alcanzarlo, responde con lo que hizo y lo que falta. Cubierto por una prueba. |
-| **Tope de costo** | Tres capas: `MAX_TOKENS_POR_SESION` (200 000), `MAX_TOKENS_POR_DIA` global para todas las sesiones (3 000 000, así abrir sesiones nuevas no evade el tope) y `ACCESS_KEY` para el link público (comparada en tiempo constante). Timeout `LLM_TIMEOUT_MS`. |
+| **Tope de costo** | Tres capas: `MAX_TOKENS_POR_SESION` (200 000), `MAX_TOKENS_POR_DIA` global para todas las sesiones (3 000 000, **persistido en `out/consumo-diario.json`**: ni abrir sesiones nuevas ni reiniciar el servidor evade el tope) y `ACCESS_KEY` para el link público (comparada en tiempo constante). Timeout `LLM_TIMEOUT_MS`. |
 | **CA2 · Valores solo de herramientas** | El prompt lo prohíbe; el diseño lo hace innecesario: las herramientas **releen la fuente por `caso`** y `oc_crear` reconstruye el payload. Si el modelo envía un payload con un monto alterado, se rechaza (`rechazada_integridad`). Probado en `demo.ts`. |
 | **CA3 · Confirmación humana** | **La verifica el servidor, caso por caso.** Al cerrar un turno con excepciones, la sesión guarda los casos pendientes y la API devuelve `needsConfirmation: true` con `pendientes[]`. El front muestra **un botón por caso** que envía `confirmar: ["sol-005"]`. Si el usuario escribe en vez de usar el botón, el servidor interpreta el texto de forma **conservadora**: no confirma nada ante pregunta, negación o ambigüedad, y con varios pendientes exige nombrar los casos o decir "todas". En el turno siguiente, `oc_crear(confirmado=true)` solo se respeta para los casos confirmados; si no, el servidor fuerza `confirmado=false` y lo anota. Además, **la propia herramienta** exige la confirmación: `oc_crear` solo honra `confirmado=true` si el host la registró en `ctx.confirmados`, así que la garantía viaja con el módulo reutilizable y no depende del servidor. Lo cubren 6 pruebas de flujo y 15 de lectura de texto ("¿qué pasa si la creo?", "confirmo que no quiero crearla" y "Confirmo sol-004 pero no sol-005" **no** confirman). |
 | **Bloqueo ≠ confirmación** | Un bloqueo nunca se salta, ni con `confirmado=true`. Probado. |
@@ -135,7 +135,7 @@ Los 10 controles son **código determinista** (`src/dominio/controles.ts`). Sus 
 | RC2 | Aprobación válida | Bloqueo | Existe, contiene "Aprobado" (y no "no aprobado") y el remitente, normalizado sin tildes, está entre los aprobadores del centro. | `sol-003` |
 | RC3 | Tope del aprobador | Bloqueo | Compara contra el tope del aprobador. **Si el aprobador no es válido, revisa si algún aprobador del centro alcanzaría**; si ninguno, lo reporta para escalar. | `sol-003` (74 M vs tope máximo 30 M) |
 | RC4 | Subárea ∈ centro | Bloqueo | Pertenencia exacta; un centro inexistente también bloquea. | — |
-| RC5 | Cotización respalda la solicitud | Confirmación | Desviación relativa ±2 %, más mismo NIT de proveedor y misma moneda. **Detecta además el monto explícito en el texto de la aprobación** y, si la cotización lo supera, recomienda re-aprobación. | `sol-004` (6 %) |
+| RC5 | Cotización respalda la solicitud | Confirmación | Desviación relativa ±2 %, más mismo NIT de proveedor, misma moneda y **cotización vigente** a la fecha de la solicitud. **Detecta además el monto explícito en el texto de la aprobación** y, si la cotización lo supera, recomienda re-aprobación. | `sol-004` (6 %) |
 | RC6 | IVA informado | Confirmación + derivado | Deriva `indicador_iva_default` del proveedor y pide confirmación. Valida también que el código exista en el maestro. | `sol-006` |
 | RC7 | Condiciones de pago | Derivado | Deriva `condiciones_pago_default` del proveedor y lo informa. | `sol-006` |
 | RC8 | OC retroactiva | Confirmación | Factura con fecha anterior a la solicitud → `retroactiva = true`, que queda en `control.csv`. **Una factura adjunta pero ilegible también pide confirmación**: no se puede descartar la retroactividad. | `sol-005` |
@@ -267,6 +267,17 @@ Una OC creada después de la factura no controla nada: solo legaliza un gasto qu
 
 ---
 
+**Dependencias y por qué** (requisito no funcional del PRD)
+
+| Paquete | Uso | Por qué este y no otro |
+|---|---|---|
+| `zod` | Argumentos de herramientas, payload SAP, cuerpo de la API | Obligatorio en el PRD. Su subruta `zod/v4` trae `toJSONSchema` y mensajes en español, así que no hace falta `zod-to-json-schema`. |
+| `hono` | Servidor HTTP | Mínimo, corre igual en Bun y en Node, sin dependencias transitivas. |
+| `@anthropic-ai/sdk` | Implementación del adaptador LLM | SDK oficial: tipos, reintentos y caché de prompt. Solo lo importa `src/llm/anthropic.ts`. |
+| `pdf-lib` | Evidencia de aprobación en PDF (P1) | Sin binarios nativos y sin navegador headless, a diferencia de Puppeteer. |
+| `exceljs` | `oc_leer_excel` (P1) | Lee fórmulas, fechas y texto enriquecido. El paquete `xlsx` en npm está desactualizado y tiene vulnerabilidades conocidas. |
+| `typescript`, `@types/bun`, `tsx` (desarrollo) | Verificación de tipos y `demo.ts` en Node | `tsx` permite correr la demo sin Bun (`bun run demo:node`). |
+
 ## 9. Supuestos
 
 | # | Supuesto | Alternativa y por qué no |
@@ -297,9 +308,9 @@ Una OC creada después de la factura no controla nada: solo legaliza un gasto qu
 | HU-6 Errores | **Hecho** | `{ ok: false, error }` legible, caso inexistente o malicioso, monto no numérico | — |
 | Front (tool calls y confirmación resaltada) | **Hecho** | `web/index.html` | Autenticación corporativa (SSO) |
 | `demo.ts` sin clave, determinista | **Hecho** | Verifica O1–O4, idempotencia, confirmación e integridad | — |
-| `oc_leer_excel` (P1 opcional) | **No hecho** | — | Priorizado después del adaptador SAP |
+| `oc_leer_excel` (P1 opcional) | **Hecho** | Lee `.xlsx` real con `exceljs`: encabezados, fórmulas, fechas; solo dentro de `fixtures/` u `out/`, máx. 5 MB; 5 pruebas | Encadenarlo con `oc_leer_paquete` cuando lleguen adjuntos binarios |
 | Bonus `modulo/` | **Hecho** | Generado desde las mismas fuentes; `tests/modulo.test.ts` falla si diverge | — |
-| Pruebas automáticas | **Adicional** | 44 pruebas (`bun test`), aisladas en un directorio temporal | Integrarlas en CI |
+| Pruebas automáticas | **Adicional** | 52 pruebas (`bun test`), aisladas en un directorio temporal | Integrarlas en CI |
 
 ---
 
@@ -323,7 +334,7 @@ Revisé, ejecuté y validé cada pieza (pruebas, demo y conversación real con e
 | R4 | **Suplantación del correo de aprobación** | Baja | Alto | Validar SPF/DKIM del `.eml` original; a mediano plazo, aprobación en un flujo con identidad (Teams/Power Automate o el flujo de liberación de SAP). |
 | R5 | **OC duplicada** por reintentos o concurrencia | Media | Alto | Idempotencia por referencia en SAP + bandeja de salida (6.4); un proceso de creación por `solicitud_id`. |
 | R6 | **Datos sensibles en logs** (montos, correos de personas) | Media | Medio | `log.jsonl` guarda solo resúmenes, pero `out/sesiones/<id>.json` guarda la conversación completa con resultados de herramientas (montos y correos). En producción: almacenamiento cifrado, retención de 90 días y acceso restringido a Auditoría. La clave del modelo nunca se registra (verificado: no aparece en `out/` ni en los logs del servidor). |
-| R7 | **Costo descontrolado** por un link público | Baja | Medio | Topes de iteraciones y tokens por sesión, `ACCESS_KEY`, límite de gasto en la consola del proveedor. |
+| R7 | **Costo descontrolado** por un link público | Baja | Medio | Topes de iteraciones y de tokens por sesión, tope diario global persistido, `ACCESS_KEY` (clave simulada `periferia-reto03-demo` en la demo, comparada en tiempo constante) y límite de gasto en la consola del proveedor. |
 | R8 | **Cambio de comportamiento del modelo** al actualizar versión | Media | Medio | Modelo fijado por variable; `bun test` + `demo.ts` + un set de conversaciones de regresión antes de cambiar de versión. |
 | R9 | **Gobierno de IA** | — | — | Registrar el caso de uso en el inventario de IA de TI antes del piloto, con dueño, datos tratados y evaluación de riesgo. |
 | R10 | **Adopción**: la analista vuelve a digitar | Media | Alto | Piloto en paralelo con la usuaria; el agente debe ser más rápido que el atajo manual desde la primera semana (Plan B). |
