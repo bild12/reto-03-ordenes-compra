@@ -1,0 +1,85 @@
+{
+  "version": "1.0.0",
+  "descripcion": "Matriz de controles de órdenes de compra. Fuente única de parámetros, tipo de control, acción sugerida y responsable. Cambiar una regla de negocio aquí no requiere tocar el servidor ni el ciclo del agente.",
+  "parametros": {
+    "tolerancia_cotizacion": 0.02,
+    "tolerancia_aritmetica": 1,
+    "longitud_texto_breve_sap": 40,
+    "sociedad": "1000",
+    "organizacion_compras": "1000",
+    "monedas_permitidas": ["COP", "USD"],
+    "primer_numero_oc": 4500000001
+  },
+  "reglas": {
+    "RC1": {
+      "nombre": "Proveedor existe en el maestro y está activo",
+      "tipo": "bloqueo",
+      "naturaleza": "preventivo",
+      "accion_sugerida": "Solicitar a Compras la creación o reactivación del proveedor en el maestro SAP, con RUT y certificación bancaria, antes de emitir la OC.",
+      "responsable": "Compras (dueño del maestro de proveedores)"
+    },
+    "RC2": {
+      "nombre": "Aprobación existe, dice 'Aprobado' y proviene de un aprobador del centro de costo",
+      "tipo": "bloqueo",
+      "naturaleza": "preventivo",
+      "accion_sugerida": "Pedir al solicitante la aprobación de un aprobador registrado para el centro de costo indicado.",
+      "responsable": "Solicitante"
+    },
+    "RC3": {
+      "nombre": "Valor total dentro del tope del aprobador",
+      "tipo": "bloqueo",
+      "naturaleza": "preventivo",
+      "accion_sugerida": "Escalar la aprobación a un aprobador con atribución suficiente según la matriz de delegación.",
+      "responsable": "Solicitante / dueño de la matriz de aprobación"
+    },
+    "RC4": {
+      "nombre": "Subárea pertenece al centro de costo",
+      "tipo": "bloqueo",
+      "naturaleza": "preventivo",
+      "accion_sugerida": "Pedir al solicitante corregir el centro de costo o la subárea en la solicitud.",
+      "responsable": "Solicitante"
+    },
+    "RC5": {
+      "nombre": "Cotización coincide con la solicitud (tolerancia 2 %)",
+      "tipo": "confirmacion",
+      "naturaleza": "detectivo",
+      "accion_sugerida": "Confirmar con el solicitante el valor correcto. Si el valor real es el de la cotización, actualizar la solicitud y obtener re-aprobación.",
+      "responsable": "Analista administrativa"
+    },
+    "RC6": {
+      "nombre": "Indicador de IVA informado (si falta, se deriva del proveedor)",
+      "tipo": "confirmacion",
+      "naturaleza": "detectivo",
+      "accion_sugerida": "Confirmar el indicador de IVA derivado del maestro de proveedores.",
+      "responsable": "Analista administrativa"
+    },
+    "RC7": {
+      "nombre": "Condiciones de pago informadas (si faltan, se derivan del proveedor)",
+      "tipo": "derivado",
+      "naturaleza": "informativo",
+      "accion_sugerida": "Ninguna: se informa el valor derivado.",
+      "responsable": "Analista administrativa"
+    },
+    "RC8": {
+      "nombre": "OC no retroactiva (factura anterior a la solicitud)",
+      "tipo": "confirmacion",
+      "naturaleza": "detectivo",
+      "accion_sugerida": "Crear solo con confirmación explícita; queda marcada como retroactiva en el log de control para seguimiento de la dirección.",
+      "responsable": "Analista administrativa / Dirección administrativa"
+    },
+    "RC9": {
+      "nombre": "Aprobación posterior o igual a la fecha de solicitud",
+      "tipo": "confirmacion",
+      "naturaleza": "detectivo",
+      "accion_sugerida": "Confirmar que la aprobación corresponde a esta solicitud.",
+      "responsable": "Analista administrativa"
+    },
+    "RC10": {
+      "nombre": "Cantidad x valor unitario = valor total (± 1)",
+      "tipo": "bloqueo",
+      "naturaleza": "preventivo",
+      "accion_sugerida": "Pedir al solicitante corregir la cantidad, el valor unitario o el total de la solicitud.",
+      "responsable": "Solicitante"
+    }
+  }
+}
