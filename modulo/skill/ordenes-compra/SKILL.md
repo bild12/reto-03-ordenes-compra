@@ -27,7 +27,7 @@ Criterios para explicar los hallazgos:
 - Un **bloqueo** nunca se salta, ni con confirmación. Una **confirmación** requiere la decisión explícita de la analista, caso por caso. Un **derivado** solo se informa.
 - RC1 busca al proveedor por NIT de la solicitud; si falta, por el NIT de la cotización; si falta, por nombre normalizado.
 - RC3: si ningún aprobador del centro alcanza el monto, hay que escalar a la dirección (corregir el aprobador no basta).
-- RC5: si el líder aprobó un monto explícito menor que la cotización, recomienda re-aprobación en lugar de solo pedir confirmación.
+- RC5: la cotización debe ser del mismo proveedor, en la misma moneda y estar vigente a la fecha de la solicitud. Si el líder aprobó un monto explícito menor que la cotización, recomienda re-aprobación en lugar de solo pedir confirmación.
 - RC8: una OC retroactiva queda marcada para el indicador de la dirección; una factura ilegible no permite descartarla.
 
 ## Códigos SAP de referencia

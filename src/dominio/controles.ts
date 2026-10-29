@@ -146,7 +146,9 @@ export function validarPaquete(paquete: Paquete, maestros: Maestros, matriz: Mat
   if (Math.abs(calculado - total) <= parametros.tolerancia_aritmetica) ok("RC10")
   else reportar("RC10", `${solicitud.cantidad} × ${formatearMonto(solicitud.valor_unitario)} = ${formatearMonto(calculado)}, distinto del total ${formatearMonto(total)}.`)
 
-  // RC5 · la cotización respalda la solicitud: mismo proveedor, misma moneda y valor dentro de la tolerancia.
+  const fechaSolicitud = fechaLocal(solicitud.fecha_solicitud) ?? solicitud.fecha_solicitud
+
+  // RC5 · la cotización respalda la solicitud: mismo proveedor, misma moneda, vigente y valor dentro de la tolerancia.
   if (!cotizacion) {
     reportar("RC5", "No hay cotización legible en el paquete; no se puede contrastar el valor.")
   } else {
@@ -168,6 +170,11 @@ export function validarPaquete(paquete: Paquete, maestros: Maestros, matriz: Mat
       reportar("RC5", `Cotización ${formatearMonto(cotizacion.total)} vs solicitud ${formatearMonto(total)}: desviación ${pct} % (tolerancia ${parametros.tolerancia_cotizacion * 100} %).`, superaAprobado ? {
         recomendacion: `El líder aprobó explícitamente ${formatearMonto(montoAprobado)}. Si se confirma, la OC sale por ${formatearMonto(total)} y la factura llegará por ${formatearMonto(cotizacion.total)}: la diferencia de ${formatearMonto(cotizacion.total - total)} no estará aprobada. Recomendado: actualizar la solicitud y pedir re-aprobación, o negociar el precio con el proveedor.`,
       } : {})
+    }
+    if (cotizacion.validez_hasta && cotizacion.validez_hasta < fechaSolicitud) {
+      rc5Ok = false
+      const referencia = cotizacion.referencia ? ` ${cotizacion.referencia}` : ""
+      reportar("RC5", `La cotización${referencia} venció el ${cotizacion.validez_hasta}, antes de la solicitud (${fechaSolicitud}): el precio puede no estar vigente.`)
     }
     if (rc5Ok) ok("RC5")
   }
@@ -194,7 +201,6 @@ export function validarPaquete(paquete: Paquete, maestros: Maestros, matriz: Mat
   }
 
   // RC8 · OC retroactiva. Una factura adjunta pero ilegible no permite descartarla: se pide confirmación.
-  const fechaSolicitud = fechaLocal(solicitud.fecha_solicitud) ?? solicitud.fecha_solicitud
   const fechaFactura = factura ? fechaLocal(factura.fecha) : null
   const retroactiva = fechaFactura !== null && fechaFactura < fechaSolicitud
   const facturaIlegible = paquete.faltantes.some((f) => f.startsWith("factura"))
